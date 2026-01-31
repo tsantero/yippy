@@ -10,10 +10,19 @@ struct SetData {
 }
 
 #[derive(Debug, Deserialize)]
+struct IfData {
+    cond: String,
+    then: Vec<Instruction>,
+    #[serde(default, rename = "else")]
+    else_: Vec<Instruction>,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Instruction {
     Set(SetData),
     Print(String),
+    If(IfData),
 }
 
 /// Evaluates mustache templates. If the whole string is {{ expr }}, returns
@@ -77,6 +86,22 @@ fn execute(program: Vec<Instruction>, ctx: &mut HashMapContext) {
                 match value {
                     Value::String(s) => println!("{}", s),
                     other => println!("{}", other),
+                }
+            }
+            Instruction::If(data) => {
+                let cond = interpolate(&data.cond, ctx)
+                    .expect("Failed to evaluate condition");
+                let is_true = match cond {
+                    Value::Boolean(b) => b,
+                    Value::Int(i) => i != 0,
+                    Value::Float(f) => f != 0.0,
+                    Value::String(s) => !s.is_empty(),
+                    _ => false,
+                };
+                if is_true {
+                    execute(data.then, ctx);
+                } else if !data.else_.is_empty() {
+                    execute(data.else_, ctx);
                 }
             }
         }

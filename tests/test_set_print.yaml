@@ -1,0 +1,4 @@
+- !set { var: x, val: "{{ 1 + 1 }}" }
+- !print "{{ x }}"
+- !set { var: msg, val: "no drinks" }
+- !print "{{ msg }}"

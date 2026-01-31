@@ -1,0 +1,4 @@
+- !set { var: name, val: "yippy" }
+- !set { var: version, val: "{{ 1 }}" }
+- !print "{{ name }} v{{ version }}"
+- !print "its a lot of math: {{ 2 + 2 }}"

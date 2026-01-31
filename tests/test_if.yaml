@@ -1,0 +1,18 @@
+- !set { var: x, val: "{{ 10 }}" }
+- !if
+  cond: "{{ x > 5 }}"
+  then:
+    - !print "big"
+  else:
+    - !print "small"
+- !set { var: x, val: "{{ 2 }}" }
+- !if
+  cond: "{{ x > 5 }}"
+  then:
+    - !print "big"
+  else:
+    - !print "small"
+- !if
+  cond: "{{ x == 2 }}"
+  then:
+    - !print "x is two"
