@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 
@@ -14,6 +15,16 @@ enum Instruction {
     Set(SetData),
 }
 
+fn execute(program: Vec<Instruction>, vars: &mut HashMap<String, String>) {
+    for instruction in program {
+        match instruction {
+            Instruction::Set(data) => {
+                vars.insert(data.var, data.val);
+            }
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -25,5 +36,8 @@ fn main() {
     let content = fs::read_to_string(&args[1]).expect("Failed to read file");
     let program: Vec<Instruction> = yaml_serde::from_str(&content).expect("Failed to parse YAML");
 
-    println!("{:#?}", program);
+    let mut vars: HashMap<String, String> = HashMap::new();
+    execute(program, &mut vars);
+
+    println!("{:#?}", vars);
 }
