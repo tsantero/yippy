@@ -1,0 +1,12 @@
+- !set { var: a, val: "{{ 0 }}" }
+- !set { var: b, val: "{{ 1 }}" }
+- !set { var: i, val: "{{ 0 }}" }
+
+- !while
+  cond: "{{ i < 42 }}"
+  do:
+    - !print "{{ a }}"
+    - !set { var: tmp, val: "{{ a + b }}" }
+    - !set { var: a, val: "{{ b }}" }
+    - !set { var: b, val: "{{ tmp }}" }
+    - !set { var: i, val: "{{ i + 1 }}" }
