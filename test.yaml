@@ -1,2 +1,7 @@
-- !set { var: x, val: "1" }
-- !print "aim for the pool"
+- !set { var: x, val: "1 + 1" }
+- !print "x"
+- !set { var: y, val: "x * 10" }
+- !print "y"
+- !print "x + y"
+- !set { var: quip, val: "\"no drinks\"" }
+- !print "quip"
