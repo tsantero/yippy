@@ -1,2 +1,2 @@
 - !set { var: x, val: "1" }
-- !set { var: y, val: "someone painted it blue" }
+- !print "aim for the pool"

@@ -13,6 +13,7 @@ struct SetData {
 #[serde(rename_all = "snake_case")]
 enum Instruction {
     Set(SetData),
+    Print(String),
 }
 
 fn execute(program: Vec<Instruction>, vars: &mut HashMap<String, String>) {
@@ -20,6 +21,9 @@ fn execute(program: Vec<Instruction>, vars: &mut HashMap<String, String>) {
         match instruction {
             Instruction::Set(data) => {
                 vars.insert(data.var, data.val);
+            }
+            Instruction::Print(msg) => {
+                println!("{}", msg);
             }
         }
     }
