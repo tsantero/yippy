@@ -1,7 +1,7 @@
-- !set { var: x, val: "1 + 1" }
-- !print "x"
-- !set { var: y, val: "x * 10" }
-- !print "y"
-- !print "x + y"
-- !set { var: quip, val: "\"no drinks\"" }
-- !print "quip"
+- !set { var: x, val: "{{ 1 + 1 }}" }
+- !print "x = {{ x }}"
+- !set { var: y, val: "{{ x * 10 }}" }
+- !print "y = {{ y }}"
+- !print "sum = {{ x + y }}"
+- !set { var: quip, val: "no drinks" }
+- !print "{{ quip }}"
