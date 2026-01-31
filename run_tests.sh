@@ -13,3 +13,7 @@ echo "=== test_interpolation ==="
 echo ""
 echo "=== test_if ==="
 ./target/debug/yippy tests/test_if.yaml
+
+echo ""
+echo "=== test_while ==="
+./target/debug/yippy tests/test_while.yaml

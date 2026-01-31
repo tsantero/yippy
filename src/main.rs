@@ -1,38 +1,31 @@
 use evalexpr::{eval_with_context_mut, ContextWithMutableVariables, HashMapContext, Value};
 use serde::Deserialize;
-use std::env;
-use std::fs;
+use std::{env, fs, process};
 
-#[derive(Debug, Deserialize)]
-struct SetData {
-    var: String,
-    val: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct IfData {
-    cond: String,
-    then: Vec<Instruction>,
-    #[serde(default, rename = "else")]
-    else_: Vec<Instruction>,
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 enum Instruction {
-    Set(SetData),
+    Set { var: String, val: String },
     Print(String),
-    If(IfData),
+    If {
+        cond: String,
+        then: Vec<Instruction>,
+        #[serde(default, rename = "else")]
+        else_: Vec<Instruction>,
+    },
+    While {
+        cond: String,
+        #[serde(rename = "do")]
+        do_: Vec<Instruction>,
+    },
 }
 
-/// Evaluates mustache templates. If the whole string is {{ expr }}, returns
-/// the typed value. If mixed with text, interpolates and returns a string.
-/// No mustaches means literal string.
+const MAX_STEPS: u64 = 100_000;
+
 fn interpolate(input: &str, ctx: &mut HashMapContext) -> Result<Value, String> {
     let trimmed = input.trim();
 
-    if trimmed.starts_with("{{") && trimmed.ends_with("}}") {
-        let inner = &trimmed[2..trimmed.len()-2];
+    if let Some(inner) = trimmed.strip_prefix("{{").and_then(|s| s.strip_suffix("}}")) {
         if !inner.contains("{{") && !inner.contains("}}") {
             let expr = inner.trim();
             return eval_with_context_mut(expr, ctx)
@@ -49,76 +42,99 @@ fn interpolate(input: &str, ctx: &mut HashMapContext) -> Result<Value, String> {
 
     while let Some(start) = remaining.find("{{") {
         result.push_str(&remaining[..start]);
+        let rest = &remaining[start + 2..];
 
-        let after_open = &remaining[start + 2..];
-        let end = after_open.find("}}")
-            .ok_or_else(|| "unclosed {{ in template".to_string())?;
+        let (expr, after) = rest.split_once("}}")
+            .ok_or_else(|| "unclosed {{".to_string())?;
 
-        let expr = after_open[..end].trim();
-        let value = eval_with_context_mut(expr, ctx)
-            .map_err(|e| format!("eval '{}': {}", expr, e))?;
+        let value = eval_with_context_mut(expr.trim(), ctx)
+            .map_err(|e| format!("eval '{}': {}", expr.trim(), e))?;
 
         match value {
             Value::String(s) => result.push_str(&s),
-            other => result.push_str(&other.to_string()),
+            v => result.push_str(&v.to_string()),
         }
 
-        remaining = &after_open[end + 2..];
+        remaining = after;
     }
 
     result.push_str(remaining);
-
     Ok(Value::String(result))
 }
 
-fn execute(program: Vec<Instruction>, ctx: &mut HashMapContext) {
+fn is_truthy(val: &Value) -> bool {
+    match val {
+        Value::Boolean(b) => *b,
+        Value::Int(i) => *i != 0,
+        Value::Float(f) => *f != 0.0,
+        Value::String(s) => !s.is_empty(),
+        _ => false,
+    }
+}
+
+fn execute(program: Vec<Instruction>, ctx: &mut HashMapContext, steps: &mut u64) -> Result<(), String> {
     for instruction in program {
+        *steps += 1;
+        if *steps > MAX_STEPS {
+            return Err(format!("step limit exceeded ({} instructions)", MAX_STEPS));
+        }
+
         match instruction {
-            Instruction::Set(data) => {
-                let value = interpolate(&data.val, ctx)
-                    .expect("Failed to evaluate expression");
-                ctx.set_value(data.var, value)
-                    .expect("Failed to set variable");
+            Instruction::Set { var, val } => {
+                let value = interpolate(&val, ctx)?;
+                ctx.set_value(var, value).map_err(|e| e.to_string())?;
             }
             Instruction::Print(input) => {
-                let value = interpolate(&input, ctx)
-                    .expect("Failed to evaluate expression");
+                let value = interpolate(&input, ctx)?;
                 match value {
                     Value::String(s) => println!("{}", s),
-                    other => println!("{}", other),
+                    v => println!("{}", v),
                 }
             }
-            Instruction::If(data) => {
-                let cond = interpolate(&data.cond, ctx)
-                    .expect("Failed to evaluate condition");
-                let is_true = match cond {
-                    Value::Boolean(b) => b,
-                    Value::Int(i) => i != 0,
-                    Value::Float(f) => f != 0.0,
-                    Value::String(s) => !s.is_empty(),
-                    _ => false,
-                };
-                if is_true {
-                    execute(data.then, ctx);
-                } else if !data.else_.is_empty() {
-                    execute(data.else_, ctx);
+            Instruction::If { cond, then, else_ } => {
+                let cond_val = interpolate(&cond, ctx)?;
+                if is_truthy(&cond_val) {
+                    execute(then, ctx, steps)?;
+                } else if !else_.is_empty() {
+                    execute(else_, ctx, steps)?;
+                }
+            }
+            Instruction::While { cond, do_ } => {
+                loop {
+                    let cond_val = interpolate(&cond, ctx)?;
+                    if !is_truthy(&cond_val) {
+                        break;
+                    }
+                    execute(do_.clone(), ctx, steps)?;
                 }
             }
         }
     }
+    Ok(())
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-
     if args.len() < 2 {
         eprintln!("Usage: yippy <script.yaml>");
-        std::process::exit(1);
+        process::exit(1);
     }
 
-    let content = fs::read_to_string(&args[1]).expect("Failed to read file");
-    let program: Vec<Instruction> = yaml_serde::from_str(&content).expect("Failed to parse YAML");
+    let content = fs::read_to_string(&args[1]).unwrap_or_else(|e| {
+        eprintln!("error reading file: {}", e);
+        process::exit(1);
+    });
+
+    let program: Vec<Instruction> = yaml_serde::from_str(&content).unwrap_or_else(|e| {
+        eprintln!("yaml parse error: {}", e);
+        process::exit(1);
+    });
 
     let mut ctx = HashMapContext::new();
-    execute(program, &mut ctx);
+    let mut steps = 0u64;
+
+    if let Err(e) = execute(program, &mut ctx, &mut steps) {
+        eprintln!("runtime error: {}", e);
+        process::exit(1);
+    }
 }
