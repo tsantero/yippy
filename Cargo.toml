@@ -2,6 +2,11 @@
 name = "yippy"
 version = "0.1.0"
 edition = "2024"
+authors = ["Tom Santero <tsantero@gmail.com>"]
+description = "Turing Complete YAML"
+license = "MIT"
+repository = "https://github.com/tsantero/yippy"
+keywords = ["yaml", "interpreter", "scripting"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
